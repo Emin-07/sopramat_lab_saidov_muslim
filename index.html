@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Виртуальная лаборатория: Сопромат (Растяжение + Изгиб)</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚙️</text></svg>">
+    <style>
+        :root {
+            --bg-gradient-1: #e0e5ec;
+            --bg-gradient-2: #f0f4fa;
+            --container-bg: rgba(255,255,255,0.6);
+            --container-shadow: 20px 20px 40px rgba(0,0,0,0.1), -10px -10px 20px rgba(255,255,255,0.7);
+            --text-primary: #1a2a3a;
+            --text-secondary: #2c3e66;
+            --accent: #ff7b2c;
+            --mode-switch-bg: #ffffffaa;
+            --controls-bg: #ffffffcc;
+            --subgroup-bg: #eef2f8;
+            --result-bg: #1e2f3e;
+            --visualization-bg: #fefef5;
+            --canvas-bg: #fdf8ed;
+            --canvas-stroke: #000;
+            --mat-btn-bg: #eef3fc;
+            --border-color: #ccc;
+            --shadow-light: rgba(255,255,255,0.7);
+            --shadow-dark: rgba(0,0,0,0.1);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-gradient-1: #1a1a2e;
+                --bg-gradient-2: #16213e;
+                --container-bg: rgba(30,40,60,0.7);
+                --container-shadow: 20px 20px 40px rgba(0,0,0,0.5), -10px -10px 20px rgba(50,60,80,0.3);
+                --text-primary: #e8e8e8;
+                --text-secondary: #b0b8c8;
+                --accent: #ff8c42;
+                --mode-switch-bg: rgba(40,50,70,0.8);
+                --controls-bg: rgba(30,40,60,0.7);
+                --subgroup-bg: rgba(50,60,80,0.6);
+                --result-bg: #0d1520;
+                --visualization-bg: rgba(25,35,55,0.8);
+                --canvas-bg: #1a2030;
+                --canvas-stroke: #c0c0c0;
+                --mat-btn-bg: rgba(60,70,90,0.8);
+                --border-color: #4a5a6a;
+                --shadow-light: rgba(50,60,80,0.3);
+                --shadow-dark: rgba(0,0,0,0.5);
+            }
+        }
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(145deg, var(--bg-gradient-1) 0%, var(--bg-gradient-2) 100%);
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .lab-container {
+            max-width: 1400px;
+            width: 100%;
+            background: var(--container-bg);
+            border-radius: 24px;
+            backdrop-filter: blur(2px);
+            box-shadow: var(--container-shadow);
+            padding: 15px 15px 20px;
+        }
+
+        h1 { font-size: 1.1rem; margin: 0 0 5px 0; color: var(--text-primary); }
+        .sub { color: var(--text-secondary); border-left: 4px solid var(--accent); padding-left: 10px; margin-bottom: 15px; font-size: 0.8rem; }
+
+        @media (max-width: 400px) {
+            h1 { font-size: 0.95rem; }
+            .sub { font-size: 0.7rem; }
+            .mode-btn { font-size: 0.7rem; padding: 8px 10px; }
+            .control-group label { font-size: 0.7rem; }
+            .result-panel { padding: 6px; }
+            .result-line { font-size: 0.6rem; }
+            .subgroup { padding: 8px; }
+            .subgroup b { font-size: 0.75rem; }
+            .subgroup label { font-size: 0.7rem; }
+            button.mat-btn, button.fix-btn { padding: 3px 8px; font-size: 0.65rem; }
+            .param-input { padding: 4px; font-size: 0.7rem; }
+        }
+
+        .mode-switch {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            margin-bottom: 15px;
+            background: var(--mode-switch-bg);
+            border-radius: 20px;
+            padding: 8px;
+        }
+        .mode-btn {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.85rem;
+            cursor: pointer;
+            background: transparent;
+            transition: 0.2s;
+            text-align: center;
+            color: var(--text-primary);
+        }
+        .mode-btn .short { display: none; }
+        .mode-btn .full { display: inline; }
+        
+        @media (max-width: 450px) {
+            .mode-btn { font-size: 0.75rem; }
+            .mode-btn .short { display: inline; }
+            .mode-btn .full { display: none; }
+        }
+
+        @media (min-width: 500px) {
+            .mode-switch {
+                flex-direction: row;
+                border-radius: 30px;
+                gap: 8px;
+                padding: 5px;
+            }
+            .mode-btn {
+                flex: 1;
+                min-width: 140px;
+                font-size: 0.75rem;
+            }
+        }
+        .mode-btn.active {
+            background: var(--accent);
+            color: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+
+        .workspace {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .controls {
+            background: var(--controls-bg);
+            backdrop-filter: blur(4px);
+            border-radius: 20px;
+            padding: 15px;
+            box-shadow: 8px 8px 16px var(--shadow-dark);
+        }
+        .visualization {
+            background: var(--visualization-bg);
+            border-radius: 20px;
+            padding: 8px;
+            box-shadow: inset 0 0 0 1px var(--shadow-light), 10px 10px 20px var(--shadow-dark);
+        }
+        canvas {
+            background: var(--canvas-bg);
+            border-radius: 12px;
+            width: 100%;
+            height: auto;
+            box-shadow: 0 4px 12px var(--shadow-dark);
+            max-width: 100%;
+        }
+
+        .control-group {
+            margin-bottom: 12px;
+        }
+        .control-group label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            margin-bottom: 5px;
+            font-size: 0.8rem;
+            word-wrap: break-word;
+            min-width: 0;
+            color: var(--text-primary);
+        }
+        input[type="range"] { width: 100%; cursor: pointer; }
+        .param-input { width: 100%; padding: 6px; border-radius: 20px; border: 1px solid var(--border-color); text-align: center; min-width: 0; background: var(--controls-bg); color: var(--text-primary); }
+        .subgroup {
+            background: var(--subgroup-bg);
+            border-radius: 16px;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        .subgroup b, .subgroup label, .subgroup small {
+            color: var(--text-primary);
+        }
+        .result-panel {
+            background: var(--result-bg);
+            color: white;
+            border-radius: 16px;
+            padding: 8px;
+            margin-top: 12px;
+            overflow: hidden;
+        }
+        .result-line {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 4px;
+            font-family: monospace;
+            font-size: 0.7rem;
+            margin: 2px 0;
+        }
+        .result-line span:first-child {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .result-line span:last-child {
+            text-align: right;
+        }
+        .warning { color: #ffaa66; text-align: center; margin-top: 10px; font-weight: bold; font-size: 0.85rem; }
+        .legend { display: flex; gap: 12px; margin-top: 10px; font-size: 0.7rem; justify-content: center; flex-wrap: wrap; color: var(--text-primary); }
+        .legend span { color: var(--text-primary); }
+        .legend span small { color: var(--text-secondary); font-size: 0.65rem; }
+        .color-box { width: 14px; height: 14px; display: inline-block; border-radius: 4px; margin-right: 4px; }
+        button.mat-btn, .fix-btn {
+            background: var(--mat-btn-bg);
+            border: 1px solid var(--border-color);
+            padding: 4px 10px;
+            border-radius: 20px;
+            margin: 2px;
+            cursor: pointer;
+            color: var(--text-primary);
+            font-size: 0.75rem;
+        }
+        button.active { background: #ff7b2c; color: white; }
+
+        @media (min-width: 600px) {
+            .lab-container { padding: 25px 30px 35px; border-radius: 32px; }
+            h1 { font-size: 1.5rem; }
+            .sub { font-size: 0.9rem; padding-left: 15px; }
+            .mode-switch { gap: 15px; }
+            .mode-btn { padding: 10px 20px; font-size: 0.9rem; min-width: auto; }
+            .controls { border-radius: 24px; padding: 20px; }
+            .visualization { border-radius: 28px; padding: 20px; }
+            canvas { border-radius: 20px; }
+            .control-group { margin-bottom: 18px; font-size: 0.9rem; }
+            .subgroup { border-radius: 20px; padding: 15px; margin: 12px 0; }
+            .result-panel { border-radius: 20px; padding: 15px; margin-top: 18px; }
+            .result-line { font-size: 0.95rem; margin: 6px 0; }
+            .legend { gap: 20px; font-size: 0.8rem; margin-top: 15px; }
+            .color-box { width: 16px; height: 16px; }
+            button.mat-btn, .fix-btn { padding: 6px 14px; margin: 3px; font-size: 0.85rem; }
+        }
+
+        @media (min-width: 768px) {
+            .workspace {
+                flex-direction: row;
+                align-items: flex-start;
+                gap: 20px;
+            }
+            .controls {
+                flex: 0 0 300px;
+            }
+            .visualization {
+                flex: 1;
+            }
+        }
+
+        @media (min-width: 1100px) {
+            .lab-container { border-radius: 48px; padding: 30px 40px 40px; }
+            h1 { font-size: 1.8rem; }
+            .sub { font-size: 1rem; margin-bottom: 20px; }
+            .mode-btn { padding: 10px 28px; }
+            .workspace { gap: 30px; }
+            .controls {
+                flex: 0 0 350px;
+            }
+            .visualization {
+                flex: 1;
+            }
+            .result-line { font-size: 1rem; }
+        }
+    </style>
+</head>
+<body>
+<div class="lab-container">
+    <h1>📐 Сопромат: лаборатория</h1>
+    <div class="sub">⚡ Стержень + Балка</div>
+
+    <div class="mode-switch">
+        <button id="modeTensionBtn" class="mode-btn active"><span class="full">📌 Растяжение/Сжатие</span><span class="short">📌 Раст./Сжат.</span></button>
+        <button id="modeBendingBtn" class="mode-btn"><span class="full">📐 Изгиб балки</span><span class="short">📐 Изгиб</span></button>
+    </div>
+
+    <div class="workspace">
+        <div class="controls" id="controlsPanel">
+            <!-- динамическое содержимое -->
+        </div>
+        <div class="visualization">
+            <canvas id="mainCanvas"></canvas>
+            <div class="legend" id="legendArea"></div>
+            <div id="globalWarning" class="warning"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('mainCanvas');
+    const ctx = canvas.getContext('2d');
+    let currentMode = 'tension';
+
+    function isDarkMode() {
+        return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+
+    function getThemeColors() {
+        if (isDarkMode()) {
+            return {
+                text: '#e0e0e0',
+                textOnBar: '#ffffff',
+                tensionRod: '#ffccaa',
+                compressionRod: '#aaccff',
+                tensionRod2: '#ffaa88',
+                compressionRod2: '#88aaff',
+                diagramNPos: '#ff6b5b',
+                diagramNNeg: '#5b8bff',
+                beamColor: '#8b7355',
+                momentDiagram: '#7ba3c9',
+                arrowColor: '#ffcc00',
+                arrowColorBlue: '#6b9bff'
+            };
+        } else {
+            return {
+                text: '#000000',
+                textOnBar: '#ffffff',
+                tensionRod: '#ffccaa',
+                compressionRod: '#aaccff',
+                tensionRod2: '#ffaa88',
+                compressionRod2: '#88aaff',
+                diagramNPos: '#e34234',
+                diagramNNeg: '#2e5a88',
+                beamColor: '#5a3e2b',
+                momentDiagram: '#b0c4de',
+                arrowColor: '#ff6b00',
+                arrowColorBlue: '#4a90d9'
+            };
+        }
+    }
+
+    function resizeCanvas() {
+        const container = canvas.parentElement;
+        const padding = 16;
+        const containerWidth = container.clientWidth - padding;
+        const dpr = window.devicePixelRatio || 1;
+        
+        canvas.width = containerWidth * dpr;
+        canvas.height = (containerWidth * 0.65) * dpr;
+        canvas.style.width = containerWidth + 'px';
+        canvas.style.height = (containerWidth * 0.65) + 'px';
+        ctx.scale(dpr, dpr);
+        updateAll();
+    }
+
+    // ----------  РЕЖИМ РАСТЯЖЕНИЯ (ступенчатый, заделка/пружина, эпюра N) ----------
+    let tensionState = {
+        // Участок 1
+        L1_mm: 300, A1_mm2: 200,
+        // Участок 2
+        L2_mm: 300, A2_mm2: 100,
+        F_kN: 40,           // сила справа (растяжение +)
+        E_GPa: 200,
+        fixType: 'rigid',   // 'rigid' or 'spring'
+        springStiff_kN_per_mm: 10   // условная жесткость пружины
+    };
+
+    // ----------  РЕЖИМ ИЗГИБА (консоль, распределенная нагрузка) ----------
+    let bendingState = {
+        L_mm: 500,          // длина балки
+        q_kN_per_m: 5,      // распределенная нагрузка кН/м
+        EI: 1e9,            // жесткость (Н*мм^2) условно
+        maxDeflection_mm: 0
+    };
+
+    // DOM элементы
+    const controlsDiv = document.getElementById('controlsPanel');
+    const legendArea = document.getElementById('legendArea');
+    const globalWarning = document.getElementById('globalWarning');
+    const modeTensionBtn = document.getElementById('modeTensionBtn');
+    const modeBendingBtn = document.getElementById('modeBendingBtn');
+
+    // ---- переключение режимов ----
+    modeTensionBtn.addEventListener('click', () => {
+        currentMode = 'tension';
+        modeTensionBtn.classList.add('active');
+        modeBendingBtn.classList.remove('active');
+        renderControls();
+        resizeCanvas();
+    });
+    modeBendingBtn.addEventListener('click', () => {
+        currentMode = 'bending';
+        modeBendingBtn.classList.add('active');
+        modeTensionBtn.classList.remove('active');
+        renderControls();
+        resizeCanvas();
+    });
+
+    // ---- отрисовка интерфейса в зависимости от режима ----
+    function renderControls() {
+        const isSmall = window.innerWidth < 450;
+        
+        if (currentMode === 'tension') {
+            controlsDiv.innerHTML = `
+                <div class="control-group">
+                    <label>🔹 Сила F (кН) <span id="F_val">${tensionState.F_kN}</span></label>
+                    <input type="range" id="F_slider" min="-60" max="80" step="2" value="${tensionState.F_kN}">
+                </div>
+                <div class="subgroup">
+                    <b>📐 Участок 1</b>
+                    <label>L1 (мм) <span id="L1_val">${tensionState.L1_mm}</span></label>
+                    <input type="range" id="L1_slider" min="100" max="500" step="10" value="${tensionState.L1_mm}">
+                    <label>A1 (мм²) <span id="A1_val">${tensionState.A1_mm2}</span></label>
+                    <input type="range" id="A1_slider" min="50" max="500" step="10" value="${tensionState.A1_mm2}">
+                </div>
+                <div class="subgroup">
+                    <b>📐 Участок 2</b>
+                    <label>L2 (мм) <span id="L2_val">${tensionState.L2_mm}</span></label>
+                    <input type="range" id="L2_slider" min="100" max="500" step="10" value="${tensionState.L2_mm}">
+                    <label>A2 (мм²) <span id="A2_val">${tensionState.A2_mm2}</span></label>
+                    <input type="range" id="A2_slider" min="50" max="500" step="10" value="${tensionState.A2_mm2}">
+                </div>
+                <div class="control-group">
+                    <label>🧲 E (ГПа)</label>
+                    <div style="display:flex; flex-wrap:wrap; gap:5px;">
+                        <button class="mat-btn" data-e="200">Сталь 200</button>
+                        <button class="mat-btn" data-e="70">Алюминий 70</button>
+                    </div>
+                    <input type="number" id="E_input" step="5" value="${tensionState.E_GPa}" class="param-input">
+                </div>
+                <div class="control-group">
+                    <label>🔧 ${isSmall ? 'Закр.' : 'Закрепление'}</label>
+                    <div style="display:flex; flex-wrap:wrap; gap:5px;">
+                        <button id="fixRigidBtn" class="fix-btn ${tensionState.fixType === 'rigid' ? 'active' : ''}">${isSmall ? 'Жёстк.' : 'Жёсткая'}</button>
+                        <button id="fixSpringBtn" class="fix-btn ${tensionState.fixType === 'spring' ? 'active' : ''}">${isSmall ? 'Пруж.' : 'Пружина'}</button>
+                    </div>
+                    ${tensionState.fixType === 'spring' ? `<label>${isSmall ? 'k' : 'Жёсткость'} (кН/мм): <input type="number" id="springK" step="2" value="${tensionState.springStiff_kN_per_mm}" style="width:${isSmall ? '50px' : '80px'}"></label>` : ''}
+                </div>
+                <div class="result-panel" id="tensionResults">
+                    <div class="result-line"><span>${isSmall ? 'σ₁' : 'Напряжение σ₁'}</span><span><span id="sig1">--</span> МПа</span></div>
+                    <div class="result-line"><span>${isSmall ? 'σ₂' : 'Напряжение σ₂'}</span><span><span id="sig2">--</span> МПа</span></div>
+                    <div class="result-line"><span>${isSmall ? 'ΔL' : 'Деформация'}</span><span><span id="totalDelta">--</span> мм</span></div>
+                    <div class="result-line"><span>${isSmall ? 'δ' : 'Перемещение'}</span><span><span id="dispRight">--</span> мм</span></div>
+                </div>
+            `;
+            attachTensionEvents();
+        } 
+        else { // bending mode
+            const isSmall = window.innerWidth < 450;
+            controlsDiv.innerHTML = `
+                <div class="control-group">
+                    <label>📏 ${isSmall ? 'L' : 'Длина'} (мм) <span id="Lb_val">${bendingState.L_mm}</span></label>
+                    <input type="range" id="Lb_slider" min="200" max="800" step="10" value="${bendingState.L_mm}">
+                </div>
+                <div class="control-group">
+                    <label>⚡ q (кН/м) <span id="q_val">${bendingState.q_kN_per_m}</span></label>
+                    <input type="range" id="q_slider" min="0" max="20" step="0.5" value="${bendingState.q_kN_per_m}">
+                </div>
+                <div class="control-group">
+                    <label>📐 ${isSmall ? 'EI' : 'Жёсткость EI'} <span id="EI_val">${bendingState.EI / 1e6}</span></label>
+                    <input type="range" id="EI_slider" min="200" max="3000" step="50" value="${bendingState.EI / 1e6}">
+                </div>
+                <div class="result-panel">
+                    <div class="result-line"><span>${isSmall ? 'f' : 'Прогиб'}</span><span><span id="maxY">--</span> мм</span></div>
+                    <div class="result-line"><span>${isSmall ? 'M' : 'Момент'}</span><span><span id="maxM">--</span> ${isSmall ? 'кНм' : 'кН·м'}</span></div>
+                </div>
+                <div style="font-size:11px; margin-top:6px; color:#666;">* Балка консольная, защемлена слева</div>
+            `;
+            attachBendingEvents();
+        }
+    }
+
+    // ---- события tension ----
+    function attachTensionEvents() {
+        const F_slider = document.getElementById('F_slider');
+        const L1_slider = document.getElementById('L1_slider');
+        const L2_slider = document.getElementById('L2_slider');
+        const A1_slider = document.getElementById('A1_slider');
+        const A2_slider = document.getElementById('A2_slider');
+        const E_input = document.getElementById('E_input');
+        const fixRigid = document.getElementById('fixRigidBtn');
+        const fixSpring = document.getElementById('fixSpringBtn');
+
+        const update = () => {
+            tensionState.F_kN = parseFloat(F_slider.value);
+            tensionState.L1_mm = parseFloat(L1_slider.value);
+            tensionState.L2_mm = parseFloat(L2_slider.value);
+            tensionState.A1_mm2 = parseFloat(A1_slider.value);
+            tensionState.A2_mm2 = parseFloat(A2_slider.value);
+            tensionState.E_GPa = parseFloat(E_input.value);
+            document.getElementById('F_val').innerText = tensionState.F_kN;
+            document.getElementById('L1_val').innerText = tensionState.L1_mm;
+            document.getElementById('L2_val').innerText = tensionState.L2_mm;
+            document.getElementById('A1_val').innerText = tensionState.A1_mm2;
+            document.getElementById('A2_val').innerText = tensionState.A2_mm2;
+            updateTensionCalculationsAndDraw();
+        };
+        F_slider?.addEventListener('input', update);
+        L1_slider?.addEventListener('input', update);
+        L2_slider?.addEventListener('input', update);
+        A1_slider?.addEventListener('input', update);
+        A2_slider?.addEventListener('input', update);
+        E_input?.addEventListener('input', update);
+        if(fixRigid) fixRigid.addEventListener('click', () => { tensionState.fixType = 'rigid'; renderControls(); updateTensionCalculationsAndDraw(); });
+        if(fixSpring) fixSpring.addEventListener('click', () => { tensionState.fixType = 'spring'; renderControls(); updateTensionCalculationsAndDraw(); });
+        
+        const springK = document.getElementById('springK');
+        if(springK) springK.addEventListener('input', (e) => { tensionState.springStiff_kN_per_mm = parseFloat(e.target.value); updateTensionCalculationsAndDraw(); });
+        
+        document.querySelectorAll('.mat-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                tensionState.E_GPa = parseFloat(btn.getAttribute('data-e'));
+                if(E_input) E_input.value = tensionState.E_GPa;
+                update();
+            });
+        });
+        update();
+    }
+
+    function updateTensionCalculationsAndDraw() {
+        const F_N = tensionState.F_kN * 1000;
+        const L1_m = tensionState.L1_mm / 1000;
+        const L2_m = tensionState.L2_mm / 1000;
+        const A1_m2 = tensionState.A1_mm2 * 1e-6;
+        const A2_m2 = tensionState.A2_mm2 * 1e-6;
+        const E_Pa = tensionState.E_GPa * 1e9;
+        
+        const sigma1_MPa = (F_N / A1_m2) / 1e6;
+        const sigma2_MPa = (F_N / A2_m2) / 1e6;
+        // деформация участков (м)
+        const delta1_m = (F_N * L1_m) / (E_Pa * A1_m2);
+        const delta2_m = (F_N * L2_m) / (E_Pa * A2_m2);
+        let totalDelta_m = delta1_m + delta2_m;
+        let rightDisp_m = totalDelta_m;
+        
+        if(tensionState.fixType === 'spring') {
+            const springStiff_N_per_m = tensionState.springStiff_kN_per_mm * 1e6; // кН/мм -> Н/м
+            const springDelta_m = F_N / springStiff_N_per_m;
+            rightDisp_m = totalDelta_m + springDelta_m;
+            totalDelta_m += springDelta_m;
+        }
+        
+        document.getElementById('sig1').innerText = sigma1_MPa.toFixed(1);
+        document.getElementById('sig2').innerText = sigma2_MPa.toFixed(1);
+        document.getElementById('totalDelta').innerText = (totalDelta_m*1000).toFixed(3);
+        document.getElementById('dispRight').innerText = (rightDisp_m*1000).toFixed(3);
+        
+        drawTensionRod(sigma1_MPa, sigma2_MPa, rightDisp_m*1000);
+        drawTensionDiagramN(F_N/1000);
+    }
+    
+    function drawTensionRod(sig1, sig2, rightDisp_mm) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const w = canvas.width / (window.devicePixelRatio || 1);
+        const h = canvas.height / (window.devicePixelRatio || 1);
+        const isSmallScreen = w < 400;
+        const isVerySmall = w < 350;
+        const fontSize = isVerySmall ? 8 : (isSmallScreen ? 10 : Math.min(w * 0.025, 16));
+        const margin = w * 0.04;
+        const yBase = h * 0.28;
+        const startX = margin;
+        const endX = w - margin;
+        const drawWidth = endX - startX;
+        let L1_px = tensionState.L1_mm * drawWidth / (tensionState.L1_mm + tensionState.L2_mm);
+        let L2_px = tensionState.L2_mm * drawWidth / (tensionState.L1_mm + tensionState.L2_mm);
+        const totalLenPx = L1_px + L2_px;
+        const maxShift = Math.min(Math.max(rightDisp_mm * 0.15, -w*0.02), w*0.02);
+        const rightShift = maxShift;
+        
+        const colors = getThemeColors();
+        const rodHeight = Math.max(h * 0.06, isVerySmall ? 16 : 22);
+        ctx.fillStyle = sig1 > 0 ? colors.tensionRod : colors.compressionRod;
+        ctx.fillRect(startX, yBase-rodHeight/2, L1_px, rodHeight);
+        ctx.strokeStyle = colors.text;
+        ctx.strokeRect(startX, yBase-rodHeight/2, L1_px, rodHeight);
+        ctx.fillStyle = sig2 > 0 ? colors.tensionRod2 : colors.compressionRod2;
+        ctx.fillRect(startX + L1_px, yBase-rodHeight/2, L2_px, rodHeight);
+        ctx.strokeRect(startX + L1_px, yBase-rodHeight/2, L2_px, rodHeight);
+        
+        ctx.fillStyle = colors.text;
+        ctx.font = `bold ${fontSize}px sans-serif`;
+        const sig1Label = isSmallScreen ? `σ₁=${sig1.toFixed(1)}` : `σ₁ = ${sig1.toFixed(1)} МПа`;
+        const sig2Label = isSmallScreen ? `σ₂=${sig2.toFixed(1)}` : `σ₂ = ${sig2.toFixed(1)} МПа`;
+        ctx.fillText(sig1Label, startX+3, yBase-rodHeight/2-fontSize*0.5);
+        ctx.fillText(sig2Label, startX+L1_px+3, yBase-rodHeight/2-fontSize*0.5);
+        
+        const arrowColor = tensionState.F_kN>0 ? colors.arrowColor : colors.arrowColorBlue;
+        drawArrow(ctx, startX+totalLenPx+rightShift+10, yBase, startX+totalLenPx+rightShift, yBase, arrowColor);
+        drawArrow(ctx, startX-10, yBase, startX, yBase, arrowColor);
+        
+        ctx.font = `${fontSize}px sans-serif`;
+        const forceLabel = isSmallScreen ? `F=${Math.abs(tensionState.F_kN)}` : `F = ${Math.abs(tensionState.F_kN)} кН`;
+        ctx.fillText(forceLabel, startX+3, yBase+rodHeight/2+fontSize*1.0);
+    }
+    
+    function drawTensionDiagramN(F_kN_abs) {
+        const w = canvas.width / (window.devicePixelRatio || 1);
+        const h = canvas.height / (window.devicePixelRatio || 1);
+        const isSmallScreen = w < 400;
+        const isVerySmall = w < 350;
+        const fontSize = isVerySmall ? 8 : (isSmallScreen ? 10 : Math.min(w * 0.025, 16));
+        const margin = w * 0.04;
+        const yStart = h * 0.55;
+        const startX = margin;
+        const endX = w - margin;
+        const drawWidth = endX - startX;
+        const L1_px = tensionState.L1_mm * drawWidth / (tensionState.L1_mm + tensionState.L2_mm);
+        const L2_px = tensionState.L2_mm * drawWidth / (tensionState.L1_mm + tensionState.L2_mm);
+        const totalPx = L1_px+L2_px;
+        const barHeight = Math.max(h * 0.035, 12);
+        
+        const colors = getThemeColors();
+        ctx.strokeStyle = colors.text;
+        ctx.beginPath();
+        ctx.moveTo(startX, yStart);
+        ctx.lineTo(startX+totalPx, yStart);
+        ctx.stroke();
+        const sign = tensionState.F_kN >=0 ? 1 : -1;
+        ctx.fillStyle = sign>0 ? colors.diagramNPos : colors.diagramNNeg;
+        ctx.fillRect(startX, yStart-barHeight, totalPx, barHeight);
+        ctx.fillStyle = colors.textOnBar;
+        ctx.font = `bold ${fontSize}px sans-serif`;
+        const nLabel = isSmallScreen ? `N=${tensionState.F_kN.toFixed(1)}` : `N = ${tensionState.F_kN.toFixed(1)} кН`;
+        ctx.fillText(nLabel, startX+3, yStart-barHeight/2+fontSize*0.35);
+        
+        const epLabel = isSmallScreen ? 'Э.N' : 'Эпюра N';
+        ctx.fillStyle = colors.text;
+        ctx.font = `${fontSize}px sans-serif`;
+        ctx.fillText(epLabel, startX, yStart + barHeight + fontSize * 0.9);
+    }
+
+    // ---------- РЕЖИМ ИЗГИБА (консоль, q) ----------
+    function attachBendingEvents() {
+        const Lb_slider = document.getElementById('Lb_slider');
+        const q_slider = document.getElementById('q_slider');
+        const EI_slider = document.getElementById('EI_slider');
+        const update = () => {
+            bendingState.L_mm = parseFloat(Lb_slider.value);
+            bendingState.q_kN_per_m = parseFloat(q_slider.value);
+            bendingState.EI = parseFloat(EI_slider.value) * 1e6;
+            document.getElementById('Lb_val').innerText = bendingState.L_mm;
+            document.getElementById('q_val').innerText = bendingState.q_kN_per_m;
+            document.getElementById('EI_val').innerText = (bendingState.EI/1e6).toFixed(0);
+            calcAndDrawBending();
+        };
+        Lb_slider?.addEventListener('input', update);
+        q_slider?.addEventListener('input', update);
+        EI_slider?.addEventListener('input', update);
+        update();
+    }
+    
+    function calcAndDrawBending() {
+        const L_m = bendingState.L_mm / 1000;
+        const q_N_per_m = bendingState.q_kN_per_m * 1000;
+        const EI_Nm2 = bendingState.EI / 1e6; // конвертируем N·мм² → N·м²
+        // Макс момент в заделке M = qL²/2 (Н·м)
+        const M_max_Nm = q_N_per_m * L_m * L_m / 2;
+        // Прогиб на конце консоли: f = qL⁴/(8EI)  (м)
+        const f_m = (q_N_per_m * Math.pow(L_m,4)) / (8 * EI_Nm2);
+        const f_mm = f_m * 1000;
+        document.getElementById('maxY').innerHTML = f_mm.toFixed(2);
+        document.getElementById('maxM').innerHTML = (M_max_Nm/1000).toFixed(2);
+        
+        drawBendingBeam(f_mm, M_max_Nm/1000, L_m);
+        drawBendingMomentDiagram(M_max_Nm/1000, bendingState.L_mm);
+    }
+    
+    function drawBendingBeam(deflection_mm, maxM_kNm, L_m) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const w = canvas.width / (window.devicePixelRatio || 1);
+        const h = canvas.height / (window.devicePixelRatio || 1);
+        const isSmallScreen = w < 400;
+        const isVerySmall = w < 350;
+        const fontSize = isVerySmall ? 8 : (isSmallScreen ? 10 : Math.min(w * 0.025, 16));
+        const margin = w * 0.04;
+        const startX = margin;
+        const endX = w - margin;
+        const baseY = h * 0.28;
+        const beamLenPx = endX - startX;
+        const maxDefPx = Math.min(Math.max(deflection_mm * 0.3, -h*0.03), h*0.03);
+        const colors = getThemeColors();
+        ctx.beginPath();
+        for(let i=0; i<=50; i++) {
+            let x_ratio = i/50;
+            let x_px = startX + beamLenPx * x_ratio;
+            let y_offset = maxDefPx * Math.pow(x_ratio, 2);
+            let y = baseY - y_offset;
+            if(i===0) ctx.moveTo(x_px, y);
+            else ctx.lineTo(x_px, y);
+        }
+        ctx.lineWidth = Math.max(2, w * 0.005);
+        ctx.strokeStyle = colors.beamColor;
+        ctx.stroke();
+        ctx.font = `bold ${fontSize}px sans-serif`;
+        const arrowCount = Math.max(3, Math.floor(beamLenPx / (fontSize * 14)));
+        for(let i=1; i<=arrowCount; i++) {
+            let x = startX + beamLenPx * (i/(arrowCount+1));
+            drawArrow(ctx, x, baseY-10, x, baseY-3, colors.arrowColor, 1.5);
+        }
+        ctx.fillStyle = colors.text;
+        const qLabel = isSmallScreen ? `q=${bendingState.q_kN_per_m}` : `q = ${bendingState.q_kN_per_m} кН/м`;
+        const fLabel = isSmallScreen ? `f=${deflection_mm.toFixed(2)}` : `f = ${deflection_mm.toFixed(2)} мм`;
+        ctx.fillText(qLabel, startX+3, baseY-fontSize*0.5);
+        ctx.fillText(fLabel, startX+3, baseY+fontSize*1.0);
+        ctx.fillRect(startX-w*0.01, baseY-15, w*0.01, 30);
+    }
+    
+    function drawBendingMomentDiagram(Mmax_kNm, L_mm) {
+        const w = canvas.width / (window.devicePixelRatio || 1);
+        const h = canvas.height / (window.devicePixelRatio || 1);
+        const isSmallScreen = w < 400;
+        const isVerySmall = w < 350;
+        const fontSize = isVerySmall ? 8 : (isSmallScreen ? 10 : Math.min(w * 0.025, 16));
+        const margin = w * 0.04;
+        const yStart = h * 0.55;
+        const startX = margin;
+        const endX = w - margin;
+        const width = endX-startX;
+        const barHeight = Math.max(h * 0.035, 12);
+        const scale = Mmax_kNm > 0 ? barHeight / Mmax_kNm : 1;
+        const colors = getThemeColors();
+        ctx.fillStyle = colors.momentDiagram;
+        for(let i=0; i<=10; i++) {
+            let x = startX + i*width/10;
+            let moment = Mmax_kNm * Math.pow((i/10),2);
+            let barH = moment * scale;
+            ctx.fillRect(x, yStart-barH, width/10+1, barH);
+        }
+        ctx.fillStyle = colors.text;
+        ctx.font = `${fontSize}px sans-serif`;
+        
+        if (isSmallScreen) {
+            ctx.fillText(`Э.M: ${Mmax_kNm.toFixed(1)}`, startX, yStart + barHeight + fontSize * 0.9);
+        } else {
+            ctx.fillText('Эпюра M', startX, yStart - barHeight - fontSize * 0.3);
+            ctx.fillText(`${Mmax_kNm.toFixed(1)} кНм`, endX-45, yStart - barHeight - fontSize * 0.3);
+        }
+    }
+    
+    function drawArrow(ctx, fromX, fromY, toX, toY, color, width=2) {
+        const arrSize = Math.max(6, (canvas.width / (window.devicePixelRatio || 1)) * 0.015);
+        ctx.beginPath();
+        ctx.moveTo(fromX, fromY);
+        ctx.lineTo(toX, toY);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.stroke();
+        let angle = Math.atan2(toY-fromY, toX-fromX);
+        let ax = toX - arrSize*0.4*Math.cos(angle-Math.PI/6);
+        let ay = toY - arrSize*0.4*Math.sin(angle-Math.PI/6);
+        let bx = toX - arrSize*0.4*Math.cos(angle+Math.PI/6);
+        let by = toY - arrSize*0.4*Math.sin(angle+Math.PI/6);
+        ctx.beginPath();
+        ctx.moveTo(toX, toY);
+        ctx.lineTo(ax, ay);
+        ctx.lineTo(bx, by);
+        ctx.fillStyle = color;
+        ctx.fill();
+    }
+    
+    function updateAll() {
+        if(currentMode === 'tension') updateTensionCalculationsAndDraw();
+        else calcAndDrawBending();
+        if(currentMode === 'tension') legendArea.innerHTML = `<span><div class="color-box" style="background:#ffccaa;"></div>σ₁</span><span><div class="color-box" style="background:#ffaa88;"></div>σ₂</span><span><div class="color-box" style="background:#e34234;"></div>Эпюра N</span>`;
+        else legendArea.innerHTML = `<span><div class="color-box" style="background:#5a3e2b;"></div>балка</span><span><div class="color-box" style="background:#b0c4de;"></div>Эпюра M</span>`;
+    }
+    
+    // старт
+    renderControls();
+    resizeCanvas();
+    window.addEventListener('resize', () => resizeCanvas());
+</script>
+</body>
+</html>
